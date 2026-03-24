@@ -21,6 +21,23 @@ export const chains = {
       "https://rpc.ankr.com/eth"
     ]
   },
+
+  conflux: {
+    chainId: 1030,
+    name: "Conflux eSpace",
+    nativeToken: {
+      symbol: "CFX",
+      decimals: 18
+    },
+    explorer: {
+      name: "ConfluxScan",
+      url: "https://evm.confluxscan.org"
+    },
+    rpcs: [
+      "https://evm.confluxrpc.com",
+      "https://evmmain-china.confluxrpc.com",
+    ]
+  },
   
   base: {
     chainId: 8453,

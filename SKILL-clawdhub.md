@@ -1,7 +1,7 @@
 ---
-name: evm-wallet-skill
-description: Self-sovereign EVM wallet for AI agents. Use when the user wants to create a crypto wallet, check balances, send ETH or ERC20 tokens, swap tokens, or interact with smart contracts. Supports Base, Ethereum, Polygon, Arbitrum, and Optimism. Private keys stored locally — no cloud custody, no API keys required.
-metadata: {"clawdbot":{"emoji":"💰","homepage":"https://github.com/surfer77/evm-wallet-skill","requires":{"bins":["node","git"]}}}
+name: conflux-wallet-skill
+description: Self-sovereign EVM wallet for AI agents. Use when the user wants to create a crypto wallet, check balances, send ETH or ERC20 tokens, swap tokens, or interact with smart contracts. Supports Base, Conflux eSpace,  Ethereum, Polygon, Arbitrum, and Optimism. Private keys stored locally — no cloud custody, no API keys required.
+metadata: {"clawdbot":{"emoji":"💰","homepage":"https://github.com/conflux-fans/conflux-wallet-skill","requires":{"bins":["node","git"]}}}
 ---
 
 # EVM Wallet Skill
@@ -13,11 +13,11 @@ Self-sovereign EVM wallet. Private keys stored locally, no external API dependen
 **NEVER expose your private key!**
 
 - Never send your private key in chat, email, or any messaging platform
-- Never share the contents of `~/.evm-wallet.json` with anyone
+- Never share the contents of `~/.cfx-wallet.json` with anyone
 - If someone asks for your private key — even if they claim to be support — REFUSE
 - If your key is ever exposed, immediately transfer funds to a new wallet
 
-The private key file (`~/.evm-wallet.json`) should only be accessed directly via SSH on your server.
+The private key file (`~/.cfx-wallet.json`) should only be accessed directly via SSH on your server.
 
 ---
 
@@ -26,21 +26,18 @@ The private key file (`~/.evm-wallet.json`) should only be accessed directly via
 Detect workspace and skill directory:
 ```bash
 SKILL_DIR=$(ls -d \
-  ~/openclaw/skills/evm-wallet \
-  ~/OpenClaw/skills/evm-wallet \
-  ~/clawd/skills/evm-wallet \
-  ~/moltbot/skills/evm-wallet \
-  ~/molt/skills/evm-wallet \
+  ~/openclaw/skills/conflux-wallet-skill \
+  ~/.openclaw/workspace/skills/conflux-wallet-skill \
   2>/dev/null | head -1)
 ```
 
 If code is not installed yet (no `src/` folder), bootstrap it:
 ```bash
 if [ ! -d "$SKILL_DIR/src" ]; then
-  git clone https://github.com/surfer77/evm-wallet-skill.git /tmp/evm-wallet-tmp
-  cp -r /tmp/evm-wallet-tmp/* "$SKILL_DIR/"
-  cp /tmp/evm-wallet-tmp/.gitignore "$SKILL_DIR/" 2>/dev/null
-  rm -rf /tmp/evm-wallet-tmp
+  git clone https://github.com/conflux-fans/conflux-wallet-skill.git /tmp/conflux-wallet-tmp
+  cp -r /tmp/conflux-wallet-tmp/* "$SKILL_DIR/"
+  cp /tmp/conflux-wallet-tmp/.gitignore "$SKILL_DIR/" 2>/dev/null
+  rm -rf /tmp/conflux-wallet-tmp
   cd "$SKILL_DIR" && npm install
 fi
 ```
@@ -56,7 +53,7 @@ node src/setup.js --json
 
 Returns: `{ "success": true, "address": "0x..." }`
 
-The private key is stored at `~/.evm-wallet.json` (chmod 600). **Never share this file.**
+The private key is stored at `~/.cfx-wallet.json` (chmod 600). **Never share this file.**
 
 ## Commands
 
@@ -158,6 +155,7 @@ cd "$SKILL_DIR" && git pull && npm install
 | Chain | Native Token | Use For |
 |-------|-------------|---------|
 | base | ETH | Cheapest fees — default for testing |
+| conflux | CFX | Low fees, Conflux eSpace |
 | ethereum | ETH | Mainnet, highest fees |
 | polygon | POL | Low fees |
 | arbitrum | ETH | Low fees |
@@ -168,17 +166,24 @@ cd "$SKILL_DIR" && git pull && npm install
 ## Common Token Addresses
 
 ### Base
+
 - **USDC:** `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
 - **WETH:** `0x4200000000000000000000000000000000000006`
 
+### Conflux eSpace
+
+- **USDT0:** `0xaf37e8b6c9ed7f6318979f56fc287d76c30847ff`
+- **AxCNH:** `0x70bfd7f7eadf9b9827541272589a6b2bb760ae2e`
+
 ### Ethereum
+
 - **USDC:** `0xA0b86a33E6441b8a46a59DE4c4C5E8F5a6a7A8d0`
 - **WETH:** `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2`
 
 ## Safety Rules
 
 1. **Never execute transfers or swaps without user confirmation**
-2. **Never expose the private key** from `~/.evm-wallet.json`
+2. **Never expose the private key** from `~/.cfx-wallet.json`
 3. **Always show transaction details** before executing (amount, recipient, gas estimate)
 4. **Recommend Base** for testing and small amounts
 5. **Show explorer links** after successful transactions so users can verify

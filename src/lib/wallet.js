@@ -11,7 +11,7 @@ import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { getChain } from './chains.js';
 
 // Wallet lives in user's home directory — never in the project
-const WALLET_PATH = join(homedir(), '.evm-wallet.json');
+const WALLET_PATH = join(homedir(), '.cfx-wallet.json');
 
 /**
  * Generate a new wallet

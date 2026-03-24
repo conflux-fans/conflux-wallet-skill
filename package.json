@@ -1,7 +1,7 @@
 {
-  "name": "evm-wallet-skill",
+  "name": "conflux-wallet-skill",
   "version": "1.0.0",
-  "description": "Self-sovereign EVM wallet for Clawdbot",
+  "description": "Self-sovereign EVM wallet for OpenClaw",
   "type": "module",
   "scripts": {
     "setup": "node src/setup.js",
@@ -14,7 +14,7 @@
   "dependencies": {
     "viem": "^2.21.54"
   },
-  "keywords": ["wallet", "ethereum", "evm", "crypto", "clawdbot"],
-  "author": "Clawdbot",
+  "keywords": ["wallet", "ethereum", "evm", "crypto", "openclaw"],
+  "author": "Pana",
   "license": "MIT"
 }

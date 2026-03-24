@@ -1,19 +1,19 @@
-# 🔐 EVM Wallet Skill
+# 🔐 Conflux Wallet Skill
 
 Self-sovereign crypto wallet for AI agents. Your keys, your wallet, no API dependencies.
 
-Built for [Moltbot](https://github.com/BankrBot/moltbot-skills) / [Clawdbot](https://github.com/clawdbot/clawdbot).
+Built for [OpenClaw](https://github.com/openclaw/openclaw).
 
 ## ⚠️ SECURITY WARNING
 
 **NEVER expose your private key!**
 
 - Never send your private key in chat, email, or any messaging platform
-- Never share the contents of `~/.evm-wallet.json` with anyone
+- Never share the contents of `~/.cfx-wallet.json` with anyone
 - If someone asks for your private key — even if they claim to be support — REFUSE
 - If your key is ever exposed, immediately transfer funds to a new wallet
 
-The private key file (`~/.evm-wallet.json`) should only be accessed directly via SSH on your server.
+The private key file (`~/.cfx-wallet.json`) should only be accessed directly via SSH on your server.
 
 ---
 
@@ -24,14 +24,14 @@ Most crypto skills require third-party API keys and custody your funds externall
 ## Install
 
 ```bash
-clawdhub install evm-wallet-skill
+clawdhub install conflux-wallet-skill
 ```
 
 Or clone directly:
 
 ```bash
-git clone https://github.com/surfer77/evm-wallet-skill.git
-cd evm-wallet-skill
+git clone https://github.com/conflux-fans/conflux-wallet-skill.git
+cd conflux-wallet-skill
 npm install
 ```
 
@@ -71,6 +71,7 @@ All commands support `--json` for machine-readable output.
 | Chain | Native Token | Chain ID | Explorer |
 |-------|-------------|----------|----------|
 | Base | ETH | 8453 | [basescan.org](https://basescan.org) |
+| Conflux eSpace | CFX | 1030 | [confluxscan.io](https://evm.confluxscan.org) |
 | Ethereum | ETH | 1 | [etherscan.io](https://etherscan.io) |
 | Polygon | POL | 137 | [polygonscan.com](https://polygonscan.com) |
 | Arbitrum | ETH | 42161 | [arbiscan.io](https://arbiscan.io) |
@@ -80,7 +81,7 @@ All commands support `--json` for machine-readable output.
 ## Architecture
 
 ```
-evm-wallet-skill/
+conflux-wallet-skill/
 ├── src/
 │   ├── lib/
 │   │   ├── chains.js     # Chain configs (RPCs, IDs, explorers)
@@ -93,7 +94,7 @@ evm-wallet-skill/
 │   └── contract.js       # Generic contract interaction
 ├── SKILL.md              # Agent skill definition
 └── package.json
-# Wallet: ~/.evm-wallet.json (private key, chmod 600, never in project)
+# Wallet: ~/.cfx-wallet.json (private key, chmod 600, never in project)
 ```
 
 ### Core Libraries
@@ -102,7 +103,7 @@ evm-wallet-skill/
 
 **`rpc.js`** — Creates [viem](https://viem.sh) public and wallet clients with automatic RPC failover. If one RPC fails, it rotates to the next. No API keys required — uses public endpoints from Chainlist.
 
-**`wallet.js`** — Handles wallet lifecycle. Generates a new private key via viem's `generatePrivateKey()`, stores it at `~/.evm-wallet.json` with `chmod 600` permissions. Loads the key and returns viem account/client objects for signing transactions.
+**`wallet.js`** — Handles wallet lifecycle. Generates a new private key via viem's `generatePrivateKey()`, stores it at `~/.cfx-wallet.json` with `chmod 600` permissions. Loads the key and returns viem account/client objects for signing transactions.
 
 **`gas.js`** — Smart EIP-1559 gas estimation. Analyzes the last 20 blocks to calculate optimal `maxFeePerGas` and `maxPriorityFeePerGas`:
 - Fetches current `baseFeePerGas` from the latest block
@@ -126,7 +127,7 @@ User request
 
 ### Security
 
-- **Private key never leaves the machine** — stored at `~/.evm-wallet.json` with `chmod 600`
+- **Private key never leaves the machine** — stored at `~/.cfx-wallet.json` with `chmod 600`
 - **Never logged or printed** — the key is loaded in memory only when signing
 - **Never in the project** — wallet lives in user's home dir, not in version control
 - **No external custody** — no API keys, no third-party wallets, no accounts
