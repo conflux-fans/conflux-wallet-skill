@@ -42,13 +42,13 @@ npm install
 node src/setup.js
 
 # Check your balance
-node src/balance.js base
+node src/balance.js conflux
 
-# Send ETH
-node src/transfer.js base 0x... 0.01
+# Send CFX
+node src/transfer.js conflux 0x... 0.01
 
 # Interact with any contract
-node src/contract.js base 0x... "balanceOf(address)" 0x...
+node src/contract.js conflux 0x... "balanceOf(address)" 0x...
 ```
 
 ## Commands
@@ -70,8 +70,8 @@ All commands support `--json` for machine-readable output.
 
 | Chain | Native Token | Chain ID | Explorer |
 |-------|-------------|----------|----------|
+| Conflux eSpace | CFX | 1030 | [evm.confluxscan.org](https://evm.confluxscan.org) |
 | Base | ETH | 8453 | [basescan.org](https://basescan.org) |
-| Conflux eSpace | CFX | 1030 | [confluxscan.io](https://evm.confluxscan.org) |
 | Ethereum | ETH | 1 | [etherscan.io](https://etherscan.io) |
 | Polygon | POL | 137 | [polygonscan.com](https://polygonscan.com) |
 | Arbitrum | ETH | 42161 | [arbiscan.io](https://arbiscan.io) |
@@ -139,15 +139,6 @@ User request
 - **EVM library:** [viem](https://viem.sh) — lightweight, typed, modern
 - **DEX aggregator:** [Odos](https://odos.xyz) — multi-hop, multi-source routing
 - **RPCs:** Public endpoints (no API keys)
-
-## Roadmap
-
-- [ ] **Token swaps** via Matcha/0x aggregator (Uniswap V2/V3/V4 + more)
-- [ ] **Chainlist auto-refresh** — periodically fetch fresh RPCs
-- [ ] **ENS resolution** — send to `vitalik.eth`
-- [ ] **Passphrase encryption** for key storage
-- [ ] **Multi-wallet support**
-- [ ] **Transaction history** tracking
 
 ## License
 

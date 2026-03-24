@@ -63,13 +63,13 @@ When user asks about balance, portfolio, or how much they have:
 
 ```bash
 # Single chain
-node src/balance.js base --json
+node src/balance.js conflux --json
 
 # All chains at once
 node src/balance.js --all --json
 
 # Specific ERC20 token
-node src/balance.js base 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 --json
+node src/balance.js conflux 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 --json
 ```
 
 **Always use `--json`** for parsing. Present results in a human-readable format.

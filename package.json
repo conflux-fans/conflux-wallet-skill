@@ -1,6 +1,6 @@
 {
   "name": "conflux-wallet-skill",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Self-sovereign EVM wallet for OpenClaw",
   "type": "module",
   "scripts": {
