@@ -58,7 +58,7 @@ async function main() {
           existing_wallet: info
         }));
       } else {
-        console.log('❌ Wallet already exists!');
+        console.log('❌ Wallet already exists at ~/.cfx-wallet.json!');
         console.log(`Address: ${info.address}`);
         console.log(`Created: ${info.createdAt}`);
         console.log('\nUse --force to overwrite or check existing wallet first.');

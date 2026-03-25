@@ -4,6 +4,10 @@ Self-sovereign crypto wallet for AI agents. Your keys, your wallet, no API depen
 
 Built for [OpenClaw](https://github.com/openclaw/openclaw).
 
+## ⚠️ Disclaimer
+
+This is an exploratory project aimed at demonstrating how to build a self-hosted encrypted wallet skill for AI agents. **Do not use this code in a production environment** unless you fully understand how it works and accept the associated risks.
+
 ## ⚠️ SECURITY WARNING
 
 **NEVER expose your private key!**
@@ -14,6 +18,8 @@ Built for [OpenClaw](https://github.com/openclaw/openclaw).
 - If your key is ever exposed, immediately transfer funds to a new wallet
 
 The private key file (`~/.cfx-wallet.json`) should only be accessed directly via SSH on your server.
+
+**Do not reinitialize the wallet, otherwise it will overwrite the previous keys, leading to the loss of funds.**
 
 ---
 
