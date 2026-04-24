@@ -99,14 +99,24 @@ Only add `--yes` after the user explicitly confirms.
 When user wants to swap, trade, buy, or sell tokens:
 
 ```bash
-# Get quote first
-node src/swap.js <chain> <from_token> <to_token> <amount> --quote-only --json
+# Conflux eSpace: use the Conflux-specific swap script
+node src/swap-cfx.js conflux <from_token> <to_token> <amount> --quote-only --json
 
-# Execute swap (after user confirms)
+# Other chains: keep using the generic swap script
+node src/swap.js <chain> <from_token> <to_token> <amount> --quote-only --json
+```
+
+```bash
+# Conflux eSpace: execute after user confirms
+node src/swap-cfx.js conflux <from_token> <to_token> <amount> --yes --json
+
+# Other chains: keep using the generic swap script
 node src/swap.js <chain> <from_token> <to_token> <amount> --yes --json
 ```
 
-- Use `eth` for native ETH/POL, or pass a contract address
+- When `chain` is `conflux`, always use `src/swap-cfx.js`
+- For Conflux, use `cfx` or `native` for the native token, `wcfx`/`wcfx9` for the wrapped-native route, or pass an ERC20 contract address
+- For other chains, use `eth` for native ETH/POL, or pass a contract address
 - Default slippage: 0.5%. Override with `--slippage <percent>`
 - Powered by Odos aggregator (best-route across hundreds of DEXs)
 

@@ -67,10 +67,32 @@ node src/contract.js conflux 0x... "balanceOf(address)" 0x...
 | `node src/balance.js --all` | Check balance across all chains |
 | `node src/transfer.js <chain> <to> <amount>` | Send native token (ETH/POL) |
 | `node src/transfer.js <chain> <to> <amount> <token>` | Send ERC20 token |
-| `node src/swap.js <chain> <from> <to> <amount>` | Swap tokens via Odos aggregator |
+| `node src/swap-cfx.js conflux <from> <to> <amount>` | Swap tokens on Conflux eSpace via `espace-uniswap-lib` |
+| `node src/swap.js <chain> <from> <to> <amount>` | Swap tokens on non-Conflux chains via Odos aggregator |
 | `node src/contract.js <chain> <addr> <fn> [args...]` | Call any contract function |
 
 All commands support `--json` for machine-readable output.
+
+## Swap Routing
+
+- If chain is `conflux`, use `src/swap-cfx.js`
+- For all other chains, use `src/swap.js`
+
+```bash
+# Conflux quote
+node src/swap-cfx.js conflux cfx 0xaf37E8B6C9ED7f6318979f56Fc287d76c30847ff 1 --quote-only --json
+
+# Conflux execute
+node src/swap-cfx.js conflux cfx 0xaf37E8B6C9ED7f6318979f56Fc287d76c30847ff 1 --yes --json
+
+# Other chains (example: Base)
+node src/swap.js base eth 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 0.01 --quote-only --json
+```
+
+For Conflux input/output tokens:
+- use `cfx` or `native` for native CFX
+- use `wcfx` or `wcfx9` for wrapped CFX route
+- or pass ERC20 contract addresses directly
 
 ## Supported Chains
 
@@ -97,6 +119,8 @@ conflux-wallet-skill/
 │   ├── setup.js          # Generate wallet
 │   ├── balance.js        # Check balances
 │   ├── transfer.js       # Send tokens
+│   ├── swap-cfx.js       # Conflux eSpace swap
+│   ├── swap.js           # Non-Conflux swap via Odos
 │   └── contract.js       # Generic contract interaction
 ├── SKILL.md              # Agent skill definition
 └── package.json
@@ -143,7 +167,8 @@ User request
 
 - **Runtime:** [Node.js](https://nodejs.org)
 - **EVM library:** [viem](https://viem.sh) — lightweight, typed, modern
-- **DEX aggregator:** [Odos](https://odos.xyz) — multi-hop, multi-source routing
+- **Conflux swap:** [`espace-uniswap-lib`](https://github.com/conflux-fans/espace-uniswap-lib) (vSwap/Uniswap helpers)
+- **Other-chain swap aggregator:** [Odos](https://odos.xyz) — multi-hop, multi-source routing
 - **RPCs:** Public endpoints (no API keys)
 
 ## License
