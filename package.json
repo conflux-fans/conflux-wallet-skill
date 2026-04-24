@@ -12,6 +12,7 @@
     "check-update": "node src/check-update.js"
   },
   "dependencies": {
+    "espace-uniswap-lib": "^0.2.0",
     "viem": "^2.21.54"
   },
   "keywords": ["wallet", "ethereum", "evm", "crypto", "openclaw"],
