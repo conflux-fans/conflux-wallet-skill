@@ -1,5 +1,6 @@
 node_modules/
 state/
+.worktrees/
 bun.lock
 .DS_Store
 .update-check.json

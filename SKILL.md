@@ -122,6 +122,39 @@ node src/swap.js <chain> <from_token> <to_token> <amount> --yes --json
 
 **⚠️ ALWAYS show the quote first and get user confirmation before executing.**
 
+### Unitus Lending on Conflux eSpace
+
+When user wants to deposit, withdraw, borrow, repay, check a Unitus lending position, or ask for max borrow/withdraw/repay amount on Unitus:
+
+```bash
+# Discover live markets from Controller; do not rely on static market lists
+node src/unitus.js markets conflux --json
+
+# Current lending position and adequacy ratio
+node src/unitus.js position conflux --json
+
+# Preview before any write operation
+node src/unitus.js preview supply conflux USDT0 10 --collateral --json
+node src/unitus.js preview withdraw conflux USDT0 max --json
+node src/unitus.js preview borrow conflux USDC 5 --json
+node src/unitus.js preview repay conflux USDT0 max --json
+```
+
+Execution requires explicit user confirmation and `--yes`:
+
+```bash
+node src/unitus.js supply conflux USDT0 10 --collateral --yes --json
+node src/unitus.js repay conflux CFX 1 --yes --json
+```
+
+- Always run `markets` or `position` first to understand the live pool state.
+- Always run `preview` before execution and show the user the result.
+- `controller` and `lendingData` are minimum bootstrap addresses; markets, underlying assets, oracle, reward distributor, and risk parameters are read from chain at runtime.
+- Environment overrides are supported: `UNITUS_CONFLUX_CONTROLLER`, `UNITUS_CONFLUX_LENDING_DATA`.
+- Native CFX uses the `iCFX` market whose `underlying()` is the zero address. Do not route native CFX through `iETH`.
+- If preview returns `willSucceed: false` or warnings, do not execute the transaction.
+- Borrow and withdraw execution remain blocked until after-operation adequacy ratio simulation is implemented; use preview output for safe max information.
+
 ### Contract Interactions
 
 When user wants to call a smart contract function:
