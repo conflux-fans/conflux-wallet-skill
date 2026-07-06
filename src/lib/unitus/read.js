@@ -278,6 +278,10 @@ async function readOraclePrice(client, config, market) {
     abi: CONTROLLER_ABI,
     functionName: 'priceOracle',
   });
+  return readMarketPrice(client, priceOracle, market);
+}
+
+async function readMarketPrice(client, priceOracle, market) {
   const [price, available] = await client.readContract({
     address: priceOracle,
     abi: ORACLE_ABI,
@@ -285,6 +289,69 @@ async function readOraclePrice(client, config, market) {
     args: [market.iToken],
   });
   return { price: BigInt(price), available };
+}
+
+function findRiskMarket(markets, iToken) {
+  const market = findMarketByIToken(markets, iToken);
+  if (!market.marketParams) {
+    throw new Error(`missing market parameters for ${iToken}`);
+  }
+  return market;
+}
+
+async function readRiskState(client, config, markets, address) {
+  const [tokenData, enteredMarkets, priceOracle] = await Promise.all([
+    client.readContract({
+      address: config.lendingData,
+      abi: LENDING_DATA_ABI,
+      functionName: 'getAccountTokens',
+      args: [address],
+    }),
+    client.readContract({
+      address: config.controller,
+      abi: CONTROLLER_ABI,
+      functionName: 'getEnteredMarkets',
+      args: [address],
+    }),
+    client.readContract({
+      address: config.controller,
+      abi: CONTROLLER_ABI,
+      functionName: 'priceOracle',
+    }),
+  ]);
+  const [supplyTokens, supplyAmounts, supplyDecimals, borrowTokens, borrowAmounts, borrowDecimals] = tokenData;
+  let adjustedCollateralValue = 0n;
+  let adjustedBorrowValue = 0n;
+
+  for (let index = 0; index < supplyTokens.length; index++) {
+    const iToken = supplyTokens[index];
+    if (!enteredMarkets.some((entered) => sameAddress(entered, iToken))) continue;
+    const market = findRiskMarket(markets, iToken);
+    const collateralFactor = marketParam(market, 'collateralFactor');
+    if (collateralFactor === null || collateralFactor === 0n) continue;
+    const { price, available } = await readMarketPrice(client, priceOracle, market);
+    if (!available || price === 0n) {
+      return { warning: 'underlying price is unavailable' };
+    }
+    const value = tokenValue(BigInt(supplyAmounts[index]), price, Number(supplyDecimals[index]));
+    adjustedCollateralValue += weightedValue(value, collateralFactor);
+  }
+
+  for (let index = 0; index < borrowTokens.length; index++) {
+    const market = findRiskMarket(markets, borrowTokens[index]);
+    const borrowFactor = marketParam(market, 'borrowFactor');
+    if (borrowFactor === null || borrowFactor === 0n) {
+      return { warning: 'missing borrow factor for borrow simulation' };
+    }
+    const { price, available } = await readMarketPrice(client, priceOracle, market);
+    if (!available || price === 0n) {
+      return { warning: 'underlying price is unavailable' };
+    }
+    const value = tokenValue(BigInt(borrowAmounts[index]), price, Number(borrowDecimals[index]));
+    adjustedBorrowValue += weightedValue(value, borrowFactor);
+  }
+
+  return { adjustedCollateralValue, adjustedBorrowValue };
 }
 
 async function estimateAdequacyRatioAfter(client, config, action, market, amount, accountValue) {
@@ -296,6 +363,10 @@ async function estimateAdequacyRatioAfter(client, config, action, market, amount
   }
 
   const value = tokenValue(amount, price, market.decimals);
+  const riskState = await readRiskState(client, config, accountValue.markets, accountValue.address);
+  if (riskState.warning) {
+    return { adequacyRatioAfter: null, warning: riskState.warning };
+  }
 
   if (action === 'withdraw') {
     const collateralFactor = marketParam(market, 'collateralFactor');
@@ -303,10 +374,10 @@ async function estimateAdequacyRatioAfter(client, config, action, market, amount
       return { adequacyRatioAfter: null, warning: 'missing collateral factor for withdraw simulation' };
     }
     const collateralReduction = weightedValue(value, collateralFactor);
-    const collateralAfter = accountValue.collateralValue > collateralReduction
-      ? accountValue.collateralValue - collateralReduction
+    const collateralAfter = riskState.adjustedCollateralValue > collateralReduction
+      ? riskState.adjustedCollateralValue - collateralReduction
       : 0n;
-    return { adequacyRatioAfter: ratio(collateralAfter, accountValue.borrowValue) };
+    return { adequacyRatioAfter: ratio(collateralAfter, riskState.adjustedBorrowValue) };
   }
 
   const borrowFactor = marketParam(market, 'borrowFactor');
@@ -315,7 +386,7 @@ async function estimateAdequacyRatioAfter(client, config, action, market, amount
   }
   const borrowIncrease = weightedValue(value, borrowFactor);
   return {
-    adequacyRatioAfter: ratio(accountValue.collateralValue, accountValue.borrowValue + borrowIncrease),
+    adequacyRatioAfter: ratio(riskState.adjustedCollateralValue, riskState.adjustedBorrowValue + borrowIncrease),
   };
 }
 
@@ -415,7 +486,7 @@ export async function previewAction(client, config, markets, address, options) {
     options.action,
     market,
     resolvedRaw,
-    accountValue,
+    { ...accountValue, address, markets },
   );
   const safety = evaluatePreviewSafety(
     options.action,
