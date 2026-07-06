@@ -11,6 +11,8 @@ function fn(abi, name) {
   return abi.find((item) => item.type === 'function' && item.name === name);
 }
 
+const ONE_DOLLAR_PRICE_FOR_6_DECIMALS = 1000000000000000000000000000000n;
+
 describe('Unitus config', () => {
   it('uses env overrides for the minimum bootstrap addresses', () => {
     const env = {
@@ -191,7 +193,7 @@ describe('Unitus position and preview', () => {
         }
         if (address === config.controller && functionName === 'priceOracle') return oracle;
         if (address === oracle && functionName === 'getUnderlyingPriceAndStatus') {
-          return [1000000000000000000n, true];
+          return [ONE_DOLLAR_PRICE_FOR_6_DECIMALS, true];
         }
         throw new Error(`unexpected call ${address}.${functionName}`);
       },
@@ -255,7 +257,7 @@ describe('Unitus position and preview', () => {
         }
         if (address === config.controller && functionName === 'priceOracle') return oracle;
         if (address === oracle && functionName === 'getUnderlyingPriceAndStatus') {
-          return [1000000000000000000n, true];
+          return [ONE_DOLLAR_PRICE_FOR_6_DECIMALS, true];
         }
         throw new Error(`unexpected call ${address}.${functionName}`);
       },
@@ -304,7 +306,7 @@ describe('Unitus position and preview', () => {
         }
         if (address === config.controller && functionName === 'priceOracle') return oracle;
         if (address === oracle && functionName === 'getUnderlyingPriceAndStatus') {
-          return [1000000000000000000n, true];
+          return [ONE_DOLLAR_PRICE_FOR_6_DECIMALS, true];
         }
         throw new Error(`unexpected call ${address}.${functionName}`);
       },
@@ -352,7 +354,7 @@ describe('Unitus position and preview', () => {
         }
         if (address === config.controller && functionName === 'priceOracle') return oracle;
         if (address === oracle && functionName === 'getUnderlyingPriceAndStatus') {
-          return [1000000000000000000n, true];
+          return [ONE_DOLLAR_PRICE_FOR_6_DECIMALS, true];
         }
         throw new Error(`unexpected call ${address}.${functionName}`);
       },
@@ -401,7 +403,7 @@ describe('Unitus position and preview', () => {
         }
         if (address === config.controller && functionName === 'priceOracle') return oracle;
         if (address === oracle && functionName === 'getUnderlyingPriceAndStatus') {
-          return [1000000000000000000n, true];
+          return [ONE_DOLLAR_PRICE_FOR_6_DECIMALS, true];
         }
         throw new Error(`unexpected call ${address}.${functionName}`);
       },
@@ -489,7 +491,7 @@ describe('Unitus position and preview', () => {
         }
         if (address === config.controller && functionName === 'priceOracle') return oracle;
         if (address === oracle && functionName === 'getUnderlyingPriceAndStatus') {
-          return [1000000000000000000n, true];
+          return [ONE_DOLLAR_PRICE_FOR_6_DECIMALS, true];
         }
         throw new Error(`unexpected call ${address}.${functionName}`);
       },
@@ -537,7 +539,7 @@ describe('Unitus position and preview', () => {
         }
         if (address === config.controller && functionName === 'priceOracle') return oracle;
         if (address === oracle && functionName === 'getUnderlyingPriceAndStatus') {
-          return [1000000000000000000n, true];
+          return [ONE_DOLLAR_PRICE_FOR_6_DECIMALS, true];
         }
         throw new Error(`unexpected call ${address}.${functionName}`);
       },

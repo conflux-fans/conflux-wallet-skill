@@ -259,8 +259,8 @@ function marketParam(market, name) {
   return value === undefined ? null : BigInt(value);
 }
 
-function tokenValue(amount, price, decimals) {
-  return (amount * price) / (10n ** BigInt(decimals));
+function tokenValue(amount, price, _decimals) {
+  return (amount * price) / EXP_SCALE;
 }
 
 function weightedValue(value, factor) {
