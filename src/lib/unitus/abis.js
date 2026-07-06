@@ -47,6 +47,11 @@ export const ERC20_ABI = parseAbi([
   'function approve(address spender, uint256 amount) returns (bool)',
 ]);
 
+export const ORACLE_ABI = parseAbi([
+  'function getUnderlyingPrice(address iToken) view returns (uint256)',
+  'function getUnderlyingPriceAndStatus(address iToken) view returns (uint256, bool)',
+]);
+
 export const LENDING_DATA_ABI = parseAbi([
   'function controller() view returns (address)',
   'function getAccountTotalValue(address account) returns (uint256 supplyValue, uint256 collateralValue, uint256 borrowValue, uint256 adequacyRatio)',

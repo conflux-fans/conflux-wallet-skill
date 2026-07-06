@@ -1,5 +1,5 @@
 import { formatUnits, getAddress, parseUnits, zeroAddress } from 'viem';
-import { CONTROLLER_ABI, ERC20_ABI, ITOKEN_ABI } from './abis.js';
+import { CONTROLLER_ABI, ERC20_ABI, ITOKEN_ABI, ORACLE_ABI } from './abis.js';
 import { LENDING_DATA_ABI } from './abis.js';
 import { sameAddress } from './config.js';
 import { resolveMarket } from './resolve.js';
@@ -13,6 +13,8 @@ const MARKET_PARAM_NAMES = [
   'redeemPaused',
   'borrowPaused',
 ];
+
+const EXP_SCALE = 1000000000000000000n;
 
 function normalizeSymbol(symbol) {
   if (symbol === 'iCFX') return 'CFX';
@@ -120,6 +122,7 @@ function findMarketByIToken(markets, iToken) {
 }
 
 function formatRatio(ratio) {
+  if (ratio === 'Infinity') return ratio;
   const ratioText = formatUnits(BigInt(ratio), 18);
   return Number(ratioText).toString();
 }
@@ -192,14 +195,19 @@ function parseSafetyFactor(safety = 0.9) {
   return BigInt(Math.round(Number(safety) * 1e6)) * 1000000000000n;
 }
 
-async function readTotalAdequacyRatio(client, config, address) {
-  const totalValue = await client.readContract({
+async function readAccountTotalValue(client, config, address) {
+  const [supplyValue, collateralValue, borrowValue, adequacyRatio] = await client.readContract({
     address: config.lendingData,
     abi: LENDING_DATA_ABI,
     functionName: 'getAccountTotalValue',
     args: [address],
   });
-  return formatRatio(totalValue[3]);
+  return {
+    supplyValue: BigInt(supplyValue),
+    collateralValue: BigInt(collateralValue),
+    borrowValue: BigInt(borrowValue),
+    adequacyRatio: BigInt(adequacyRatio),
+  };
 }
 
 function selectPreviewAmount(action, amount, supplyData, borrowData, decimals) {
@@ -246,9 +254,80 @@ function formatPreviewFields(fields, decimals) {
   );
 }
 
-function evaluatePreviewSafety(action, resolvedAmount, selected) {
+function marketParam(market, name) {
+  const value = market.marketParams?.[name];
+  return value === undefined ? null : BigInt(value);
+}
+
+function tokenValue(amount, price, decimals) {
+  return (amount * price) / (10n ** BigInt(decimals));
+}
+
+function weightedValue(value, factor) {
+  return (value * factor) / EXP_SCALE;
+}
+
+function ratio(collateralValue, borrowValue) {
+  if (borrowValue === 0n) return 'Infinity';
+  return (collateralValue * EXP_SCALE) / borrowValue;
+}
+
+async function readOraclePrice(client, config, market) {
+  const priceOracle = await client.readContract({
+    address: config.controller,
+    abi: CONTROLLER_ABI,
+    functionName: 'priceOracle',
+  });
+  const [price, available] = await client.readContract({
+    address: priceOracle,
+    abi: ORACLE_ABI,
+    functionName: 'getUnderlyingPriceAndStatus',
+    args: [market.iToken],
+  });
+  return { price: BigInt(price), available };
+}
+
+async function estimateAdequacyRatioAfter(client, config, action, market, amount, accountValue) {
+  if (!['withdraw', 'borrow'].includes(action)) return null;
+
+  const { price, available } = await readOraclePrice(client, config, market);
+  if (!available || price === 0n) {
+    return { adequacyRatioAfter: null, warning: 'underlying price is unavailable' };
+  }
+
+  const value = tokenValue(amount, price, market.decimals);
+
+  if (action === 'withdraw') {
+    const collateralFactor = marketParam(market, 'collateralFactor');
+    if (collateralFactor === null || collateralFactor === 0n) {
+      return { adequacyRatioAfter: null, warning: 'missing collateral factor for withdraw simulation' };
+    }
+    const collateralReduction = weightedValue(value, collateralFactor);
+    const collateralAfter = accountValue.collateralValue > collateralReduction
+      ? accountValue.collateralValue - collateralReduction
+      : 0n;
+    return { adequacyRatioAfter: ratio(collateralAfter, accountValue.borrowValue) };
+  }
+
+  const borrowFactor = marketParam(market, 'borrowFactor');
+  if (borrowFactor === null || borrowFactor === 0n) {
+    return { adequacyRatioAfter: null, warning: 'missing borrow factor for borrow simulation' };
+  }
+  const borrowIncrease = weightedValue(value, borrowFactor);
+  return {
+    adequacyRatioAfter: ratio(accountValue.collateralValue, accountValue.borrowValue + borrowIncrease),
+  };
+}
+
+function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequacyRatioAfter) {
   const warnings = [];
   let willSucceed = ['supply', 'repay'].includes(action);
+  const poolCash = market.cash === undefined ? null : BigInt(market.cash);
+
+  if (resolvedAmount === 0n) {
+    willSucceed = false;
+    warnings.push('resolved amount must be greater than zero');
+  }
 
   if (action === 'supply' && selected.maxSupply !== undefined && resolvedAmount > selected.maxSupply) {
     willSucceed = false;
@@ -258,9 +337,44 @@ function evaluatePreviewSafety(action, resolvedAmount, selected) {
     willSucceed = false;
     warnings.push('requested amount exceeds max repay');
   }
+  if (action === 'withdraw') {
+    if (warnings.length === 0) willSucceed = true;
+    if (poolCash === null) {
+      willSucceed = false;
+      warnings.push('market cash is unavailable');
+    }
+    if (selected.safeMaxWithdraw !== undefined && resolvedAmount > selected.safeMaxWithdraw) {
+      willSucceed = false;
+      warnings.push('requested amount exceeds safe max withdraw');
+    }
+    if (poolCash !== null && resolvedAmount > poolCash) {
+      willSucceed = false;
+      warnings.push('requested amount exceeds pool cash');
+    }
+  }
+  if (action === 'borrow') {
+    if (warnings.length === 0) willSucceed = true;
+    if (poolCash === null) {
+      willSucceed = false;
+      warnings.push('market cash is unavailable');
+    }
+    if (selected.safeMaxBorrow !== undefined && resolvedAmount > selected.safeMaxBorrow) {
+      willSucceed = false;
+      warnings.push('requested amount exceeds safe max borrow');
+    }
+    if (poolCash !== null && resolvedAmount > poolCash) {
+      willSucceed = false;
+      warnings.push('requested amount exceeds pool cash');
+    }
+  }
   if (['withdraw', 'borrow'].includes(action)) {
-    willSucceed = false;
-    warnings.push('adequacyRatioAfter requires local risk-parameter simulation before enabling this write action');
+    if (adequacyRatioAfter === null) {
+      willSucceed = false;
+      warnings.push('adequacyRatioAfter could not be estimated');
+    } else if (adequacyRatioAfter !== 'Infinity' && adequacyRatioAfter <= EXP_SCALE) {
+      willSucceed = false;
+      warnings.push('adequacyRatioAfter must remain greater than 1');
+    }
   }
 
   return { willSucceed, warnings };
@@ -269,8 +383,8 @@ function evaluatePreviewSafety(action, resolvedAmount, selected) {
 export async function previewAction(client, config, markets, address, options) {
   const market = resolveMarket(markets, options.asset);
   const safeMaxFactor = parseSafetyFactor(options.safety);
-  const [adequacyRatioBefore, supplyData, borrowData] = await Promise.all([
-    readTotalAdequacyRatio(client, config, address),
+  const [accountValue, supplyData, borrowData] = await Promise.all([
+    readAccountTotalValue(client, config, address),
     client.readContract({
       address: config.lendingData,
       abi: LENDING_DATA_ABI,
@@ -295,7 +409,23 @@ export async function previewAction(client, config, markets, address, options) {
   const resolvedRaw = typeof selected.resolvedAmount === 'bigint'
     ? selected.resolvedAmount
     : BigInt(selected.resolvedAmount);
-  const safety = evaluatePreviewSafety(options.action, resolvedRaw, selected);
+  const afterEstimate = await estimateAdequacyRatioAfter(
+    client,
+    config,
+    options.action,
+    market,
+    resolvedRaw,
+    accountValue,
+  );
+  const safety = evaluatePreviewSafety(
+    options.action,
+    resolvedRaw,
+    selected,
+    market,
+    afterEstimate?.adequacyRatioAfter ?? null,
+  );
+  if (afterEstimate?.warning) safety.warnings.push(afterEstimate.warning);
+  if (afterEstimate?.warning) safety.willSucceed = false;
 
   return {
     success: true,
@@ -304,8 +434,10 @@ export async function previewAction(client, config, markets, address, options) {
     requested: options.amount,
     resolvedAmount: formatTokenAmount(resolvedRaw, market.decimals),
     ...formatPreviewFields(selected, market.decimals),
-    adequacyRatioBefore,
-    adequacyRatioAfter: null,
+    adequacyRatioBefore: formatRatio(accountValue.adequacyRatio),
+    adequacyRatioAfter: afterEstimate?.adequacyRatioAfter === undefined || afterEstimate?.adequacyRatioAfter === null
+      ? null
+      : formatRatio(afterEstimate.adequacyRatioAfter),
     willSucceed: safety.willSucceed,
     warnings: safety.warnings,
     usesSafeMax: options.amount === 'max',
