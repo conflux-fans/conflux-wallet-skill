@@ -30,12 +30,18 @@ export const ITOKEN_ABI = parseAbi([
   'function borrowRatePerBlock() view returns (uint256)',
   'function interestRateModel() view returns (address)',
   'function mint(address recipient, uint256 mintAmount)',
+  'function mint(address recipient, uint256 mintAmount, bool refreshEligibility)',
   'function mint(address recipient) payable',
   'function mintForSelfAndEnterMarket(uint256 mintAmount)',
+  'function mintForSelfAndEnterMarket(uint256 mintAmount, bool refreshEligibility)',
   'function redeemUnderlying(address from, uint256 redeemUnderlying)',
+  'function redeemUnderlying(address from, uint256 redeemUnderlying, bool refreshEligibility)',
   'function borrow(uint256 borrowAmount)',
+  'function borrow(uint256 borrowAmount, bool refreshEligibility)',
   'function repayBorrow(uint256 repayAmount)',
+  'function repayBorrow(uint256 repayAmount, bool refreshEligibility)',
   'function repayBorrow() payable',
+  'function repayBorrow(bool refreshEligibility) payable',
 ]);
 
 export const ERC20_ABI = parseAbi([

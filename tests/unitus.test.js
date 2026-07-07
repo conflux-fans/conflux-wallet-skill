@@ -102,6 +102,44 @@ describe('Unitus market discovery', () => {
     assert.equal(result.rewardDistributor, '0x00000000000000000000000000000000000000f2');
     assert.equal(calls.some((call) => call.address === zeroAddress), false);
   });
+
+  it('detects refreshEligibility overload support from proxy implementation bytecode', async () => {
+    const config = getUnitusConfig('conflux');
+    const iUsdt0 = '0x00000000000000000000000000000000000000d1';
+    const usdt0 = '0x00000000000000000000000000000000000000e1';
+    const implementation = '0x00000000000000000000000000000000000000a1';
+    const implementationSlot = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+    const client = {
+      async getStorageAt({ address, slot }) {
+        assert.equal(address, iUsdt0);
+        assert.equal(slot, implementationSlot);
+        return `0x${'0'.repeat(24)}${implementation.slice(2)}`;
+      },
+      async getCode({ address }) {
+        if (address.toLowerCase() === iUsdt0.toLowerCase()) return '0x';
+        if (address.toLowerCase() === implementation.toLowerCase()) return '0xd1a1beb44dd0ef7c';
+        throw new Error(`unexpected getCode ${address}`);
+      },
+      async readContract({ address, functionName }) {
+        if (address === config.controller && functionName === 'getAlliTokens') return [iUsdt0];
+        if (address === config.controller && functionName === 'markets') return [1n, 2n, 3n, 4n, false, false, false];
+        if (address === config.controller && functionName === 'priceOracle') return '0x00000000000000000000000000000000000000f1';
+        if (address === config.controller && functionName === 'rewardDistributor') return '0x00000000000000000000000000000000000000f2';
+        if (address === iUsdt0 && functionName === 'symbol') return 'iUSDT0';
+        if (address === iUsdt0 && functionName === 'decimals') return 18;
+        if (address === iUsdt0 && functionName === 'underlying') return usdt0;
+        if (address === iUsdt0 && functionName === 'getCash') return 20n;
+        if (address === usdt0 && functionName === 'symbol') return 'USDT0';
+        if (address === usdt0 && functionName === 'decimals') return 6;
+        if (address === usdt0 && functionName === 'name') return 'USDT0';
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    const result = await discoverMarkets(client, config);
+
+    assert.equal(result.markets[0].refreshEligibility, true);
+  });
 });
 
 describe('Unitus position and preview', () => {
@@ -753,6 +791,50 @@ describe('Unitus position and preview', () => {
     assert.match(preview.warnings.join('\n'), /native supply amount must leave balance for gas/);
   });
 
+  it('blocks native repay max when it would spend the full gas token balance', async () => {
+    const config = getUnitusConfig('conflux');
+    const wallet = '0x0000000000000000000000000000000000000abc';
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000c1',
+      iTokenSymbol: 'iCFX',
+      underlying: zeroAddress,
+      symbol: 'CFX',
+      decimals: 18,
+      native: true,
+      marketParams: {
+        collateralFactor: 700000000000000000n,
+        borrowFactor: 1000000000000000000n,
+        mintPaused: false,
+      },
+    };
+    const client = {
+      async getBalance({ address }) {
+        assert.equal(address, wallet);
+        return 1000000000000000000n;
+      },
+      async readContract({ address, functionName }) {
+        if (address === config.lendingData && functionName === 'getAccountTotalValue') return [0n, 0n, 0n, 0n];
+        if (address === config.lendingData && functionName === 'getAccountSupplyData') {
+          return [0n, 0n, 0n, 0n, 0n, 0n, 18];
+        }
+        if (address === config.lendingData && functionName === 'getAccountBorrowData') {
+          return [1000000000000000000n, 0n, 0n, 1000000000000000000n, 1000000000000000000n, 18];
+        }
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    const preview = await previewAction(client, config, [market], wallet, {
+      action: 'repay',
+      asset: 'CFX',
+      amount: 'max',
+    });
+
+    assert.equal(preview.resolvedAmount, '1');
+    assert.equal(preview.willSucceed, false);
+    assert.match(preview.warnings.join('\n'), /native repay amount must leave balance for gas/);
+  });
+
   it('blocks previews for paused market actions', async () => {
     const config = getUnitusConfig('conflux');
     const wallet = '0x0000000000000000000000000000000000000abc';
@@ -1010,6 +1092,52 @@ describe('Unitus transaction planning', () => {
     assert.equal(txs[0].address, market.iToken);
     assert.equal(txs[0].functionName, 'repayBorrow');
     assert.deepEqual(txs[0].args, []);
+    assert.equal(txs[0].value, 1250000000000000000n);
+  });
+
+  it('plans refreshEligibility overloads for current ERC20 markets', () => {
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000d1',
+      underlying: '0x00000000000000000000000000000000000000e1',
+      symbol: 'USDT0',
+      decimals: 6,
+      native: false,
+      refreshEligibility: true,
+    };
+    const user = '0x0000000000000000000000000000000000000abc';
+
+    const supply = buildUnitusTransactions({ action: 'supply', market, amount: '12.5', user });
+    const supplyAndEnter = buildUnitusTransactions({ action: 'supply', market, amount: '12.5', collateral: true, user });
+    const withdraw = buildUnitusTransactions({ action: 'withdraw', market, amount: '12.5', user });
+    const borrow = buildUnitusTransactions({ action: 'borrow', market, amount: '12.5', user });
+    const repay = buildUnitusTransactions({ action: 'repay', market, amount: '12.5', user });
+
+    assert.deepEqual(supply[1].args, [user, 12500000n, true]);
+    assert.deepEqual(supplyAndEnter[1].args, [12500000n, true]);
+    assert.deepEqual(withdraw[0].args, [user, 12500000n, true]);
+    assert.deepEqual(borrow[0].args, [12500000n, true]);
+    assert.deepEqual(repay[1].args, [12500000n, false]);
+  });
+
+  it('plans refreshEligibility overload for native repay', () => {
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000c1',
+      underlying: zeroAddress,
+      symbol: 'CFX',
+      decimals: 18,
+      native: true,
+      refreshEligibility: true,
+    };
+
+    const txs = buildUnitusTransactions({
+      action: 'repay',
+      market,
+      amount: '1.25',
+      user: '0x0000000000000000000000000000000000000abc',
+    });
+
+    assert.equal(txs[0].functionName, 'repayBorrow');
+    assert.deepEqual(txs[0].args, [false]);
     assert.equal(txs[0].value, 1250000000000000000n);
   });
 });

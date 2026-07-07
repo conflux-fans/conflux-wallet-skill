@@ -28,8 +28,13 @@ function enterMarket(controller, market) {
   };
 }
 
+function shouldRefreshEligibility(market) {
+  return market.refreshEligibility === true;
+}
+
 export function buildUnitusTransactions({ action, market, amount, collateral = false, user, controller }) {
   const parsedAmount = parseActionAmount(amount, market.decimals);
+  const refreshEligibility = shouldRefreshEligibility(market);
   const txs = [];
 
   if (action === 'supply') {
@@ -52,7 +57,9 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
       address: market.iToken,
       abi: ITOKEN_ABI,
       functionName: collateral ? 'mintForSelfAndEnterMarket' : 'mint',
-      args: collateral ? [parsedAmount] : [user, parsedAmount],
+      args: collateral
+        ? refreshEligibility ? [parsedAmount, true] : [parsedAmount]
+        : refreshEligibility ? [user, parsedAmount, true] : [user, parsedAmount],
       value: 0n,
     });
     return txs;
@@ -64,7 +71,7 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
       address: market.iToken,
       abi: ITOKEN_ABI,
       functionName: 'redeemUnderlying',
-      args: [user, parsedAmount],
+      args: refreshEligibility ? [user, parsedAmount, true] : [user, parsedAmount],
       value: 0n,
     }];
   }
@@ -75,7 +82,7 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
       address: market.iToken,
       abi: ITOKEN_ABI,
       functionName: 'borrow',
-      args: [parsedAmount],
+      args: refreshEligibility ? [parsedAmount, true] : [parsedAmount],
       value: 0n,
     }];
   }
@@ -87,7 +94,7 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
         address: market.iToken,
         abi: ITOKEN_ABI,
         functionName: 'repayBorrow',
-        args: [],
+        args: refreshEligibility ? [false] : [],
         value: parsedAmount,
       }];
     }
@@ -98,7 +105,7 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
       address: market.iToken,
       abi: ITOKEN_ABI,
       functionName: 'repayBorrow',
-      args: [parsedAmount],
+      args: refreshEligibility ? [parsedAmount, false] : [parsedAmount],
       value: 0n,
     });
     return txs;
