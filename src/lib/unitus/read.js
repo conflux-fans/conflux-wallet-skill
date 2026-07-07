@@ -238,7 +238,7 @@ function selectPreviewAmount(action, amount, supplyData, borrowData, decimals) {
   }
   if (action === 'supply') {
     return {
-      resolvedAmount: requestedAmount,
+      resolvedAmount: amount === 'max' ? supplyData[2] : requestedAmount,
       maxSupply: supplyData[2],
     };
   }
@@ -351,7 +351,7 @@ async function readRiskState(client, config, markets, address) {
     adjustedBorrowValue += weightedValue(value, borrowFactor);
   }
 
-  return { adjustedCollateralValue, adjustedBorrowValue };
+  return { adjustedCollateralValue, adjustedBorrowValue, enteredMarkets };
 }
 
 async function estimateAdequacyRatioAfter(client, config, action, market, amount, accountValue) {
@@ -370,10 +370,11 @@ async function estimateAdequacyRatioAfter(client, config, action, market, amount
 
   if (action === 'withdraw') {
     const collateralFactor = marketParam(market, 'collateralFactor');
-    if (collateralFactor === null || collateralFactor === 0n) {
+    if (collateralFactor === null) {
       return { adequacyRatioAfter: null, warning: 'missing collateral factor for withdraw simulation' };
     }
-    const collateralReduction = weightedValue(value, collateralFactor);
+    const usesMarketAsCollateral = riskState.enteredMarkets.some((iToken) => sameAddress(iToken, market.iToken));
+    const collateralReduction = usesMarketAsCollateral ? weightedValue(value, collateralFactor) : 0n;
     const collateralAfter = riskState.adjustedCollateralValue > collateralReduction
       ? riskState.adjustedCollateralValue - collateralReduction
       : 0n;
@@ -404,6 +405,10 @@ function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequac
     willSucceed = false;
     warnings.push('requested amount exceeds max supply');
   }
+  if (action === 'supply' && market.marketParams?.mintPaused) {
+    willSucceed = false;
+    warnings.push('market mint is paused');
+  }
   if (action === 'repay' && selected.maxRepay !== undefined && resolvedAmount > selected.maxRepay) {
     willSucceed = false;
     warnings.push('requested amount exceeds max repay');
@@ -422,6 +427,10 @@ function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequac
       willSucceed = false;
       warnings.push('requested amount exceeds pool cash');
     }
+    if (market.marketParams?.redeemPaused) {
+      willSucceed = false;
+      warnings.push('market redeem is paused');
+    }
   }
   if (action === 'borrow') {
     if (warnings.length === 0) willSucceed = true;
@@ -436,6 +445,10 @@ function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequac
     if (poolCash !== null && resolvedAmount > poolCash) {
       willSucceed = false;
       warnings.push('requested amount exceeds pool cash');
+    }
+    if (market.marketParams?.borrowPaused) {
+      willSucceed = false;
+      warnings.push('market borrow is paused');
     }
   }
   if (['withdraw', 'borrow'].includes(action)) {

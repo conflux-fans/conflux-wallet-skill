@@ -604,6 +604,173 @@ describe('Unitus position and preview', () => {
     assert.match(preview.warnings.join('\n'), /resolved amount must be greater than zero/);
   });
 
+  it('resolves supply max to the max supply amount', async () => {
+    const config = getUnitusConfig('conflux');
+    const wallet = '0x0000000000000000000000000000000000000abc';
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000d1',
+      symbol: 'USDT0',
+      decimals: 6,
+      marketParams: {
+        collateralFactor: 850000000000000000n,
+        borrowFactor: 1000000000000000000n,
+        mintPaused: false,
+      },
+    };
+    const client = {
+      async readContract({ address, functionName }) {
+        if (address === config.lendingData && functionName === 'getAccountTotalValue') return [0n, 0n, 0n, 0n];
+        if (address === config.lendingData && functionName === 'getAccountSupplyData') {
+          return [0n, 1000000000n, 61974n, 0n, 0n, 0n, 6];
+        }
+        if (address === config.lendingData && functionName === 'getAccountBorrowData') return [0n, 0n, 0n, 1000000000n, 0n, 6];
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    const preview = await previewAction(client, config, [market], wallet, {
+      action: 'supply',
+      asset: 'USDT0',
+      amount: 'max',
+    });
+
+    assert.equal(preview.resolvedAmount, '0.061974');
+    assert.equal(preview.maxSupply, '0.061974');
+    assert.equal(preview.willSucceed, true);
+  });
+
+  it('blocks previews for paused market actions', async () => {
+    const config = getUnitusConfig('conflux');
+    const wallet = '0x0000000000000000000000000000000000000abc';
+    const oracle = '0x00000000000000000000000000000000000000f1';
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000d1',
+      symbol: 'USDT0',
+      decimals: 6,
+      cash: '1000000000',
+      marketParams: {
+        collateralFactor: 850000000000000000n,
+        borrowFactor: 1000000000000000000n,
+        mintPaused: true,
+        redeemPaused: true,
+        borrowPaused: true,
+      },
+    };
+    const client = {
+      async readContract({ address, functionName }) {
+        if (address === config.lendingData && functionName === 'getAccountTotalValue') {
+          return [1000000000000000000000n, 1000000000000000000000n, 0n, 0n];
+        }
+        if (address === config.lendingData && functionName === 'getAccountSupplyData') {
+          return [500000000n, 1000000000n, 300000000n, 250000000n, 225000000n, 123n, 6];
+        }
+        if (address === config.lendingData && functionName === 'getAccountBorrowData') {
+          return [0n, 300000000n, 270000000n, 900000000n, 0n, 6];
+        }
+        if (address === config.lendingData && functionName === 'getAccountTokens') {
+          return [[market.iToken], [1250000000n], [6], [], [], []];
+        }
+        if (address === config.controller && functionName === 'getEnteredMarkets') return [market.iToken];
+        if (address === config.controller && functionName === 'priceOracle') return oracle;
+        if (address === oracle && functionName === 'getUnderlyingPriceAndStatus') {
+          return [ONE_DOLLAR_PRICE_FOR_6_DECIMALS, true];
+        }
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    const supply = await previewAction(client, config, [market], wallet, {
+      action: 'supply',
+      asset: 'USDT0',
+      amount: '1',
+    });
+    const withdraw = await previewAction(client, config, [market], wallet, {
+      action: 'withdraw',
+      asset: 'USDT0',
+      amount: '1',
+    });
+    const borrow = await previewAction(client, config, [market], wallet, {
+      action: 'borrow',
+      asset: 'USDT0',
+      amount: '1',
+    });
+
+    assert.equal(supply.willSucceed, false);
+    assert.match(supply.warnings.join('\n'), /mint is paused/);
+    assert.equal(withdraw.willSucceed, false);
+    assert.match(withdraw.warnings.join('\n'), /redeem is paused/);
+    assert.equal(borrow.willSucceed, false);
+    assert.match(borrow.warnings.join('\n'), /borrow is paused/);
+  });
+
+  it('does not reduce adjusted collateral when withdrawing a non-collateral zero-factor asset', async () => {
+    const config = getUnitusConfig('conflux');
+    const wallet = '0x0000000000000000000000000000000000000abc';
+    const oracle = '0x00000000000000000000000000000000000000f1';
+    const iCfx = '0x00000000000000000000000000000000000000c1';
+    const iAxCnh = '0x00000000000000000000000000000000000000d1';
+    const markets = [
+      {
+        iToken: iCfx,
+        iTokenSymbol: 'iCFX',
+        underlying: zeroAddress,
+        symbol: 'CFX',
+        decimals: 18,
+        cash: '1000000000000000000000',
+        marketParams: {
+          collateralFactor: 700000000000000000n,
+          borrowFactor: 1000000000000000000n,
+        },
+      },
+      {
+        iToken: iAxCnh,
+        iTokenSymbol: 'iAxCNH',
+        underlying: '0x00000000000000000000000000000000000000e1',
+        symbol: 'AxCNH',
+        decimals: 6,
+        cash: '1000000000',
+        marketParams: {
+          collateralFactor: 0n,
+          borrowFactor: 1000000000000000000n,
+          redeemPaused: false,
+        },
+      },
+    ];
+    const client = {
+      async readContract({ address, functionName, args }) {
+        if (address === config.lendingData && functionName === 'getAccountTotalValue') {
+          return [0n, 0n, 10000000000000000000n, 2800000000000000000n];
+        }
+        if (address === config.lendingData && functionName === 'getAccountSupplyData') {
+          return [100000000n, 1000000000n, 300000000n, 250000000n, 225000000n, 123n, 6];
+        }
+        if (address === config.lendingData && functionName === 'getAccountBorrowData') {
+          return [0n, 0n, 0n, 1000000000n, 0n, 6];
+        }
+        if (address === config.lendingData && functionName === 'getAccountTokens') {
+          return [[iCfx, iAxCnh], [1000000000000000000n, 100000000n], [18, 6], [iAxCnh], [10000000n], [6]];
+        }
+        if (address === config.controller && functionName === 'getEnteredMarkets') return [iCfx];
+        if (address === config.controller && functionName === 'priceOracle') return oracle;
+        if (address === oracle && functionName === 'getUnderlyingPriceAndStatus') {
+          if (args[0] === iCfx) return [40000000000000000000n, true];
+          if (args[0] === iAxCnh) return [ONE_DOLLAR_PRICE_FOR_6_DECIMALS, true];
+        }
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    const preview = await previewAction(client, config, markets, wallet, {
+      action: 'withdraw',
+      asset: 'AxCNH',
+      amount: '1',
+    });
+
+    assert.equal(preview.adequacyRatioAfter, '2.8');
+    assert.equal(preview.willSucceed, true);
+    assert.deepEqual(preview.warnings, []);
+  });
+
   it('blocks borrow preview when market cash is unavailable', async () => {
     const config = getUnitusConfig('conflux');
     const wallet = '0x0000000000000000000000000000000000000abc';

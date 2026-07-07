@@ -153,7 +153,7 @@ node src/unitus.js repay conflux CFX 1 --yes --json
 - Environment overrides are supported: `UNITUS_CONFLUX_CONTROLLER`, `UNITUS_CONFLUX_LENDING_DATA`.
 - Native CFX uses the `iCFX` market whose `underlying()` is the zero address. Do not route native CFX through `iETH`.
 - If preview returns `willSucceed: false` or warnings, do not execute the transaction.
-- Borrow and withdraw execution remain blocked until after-operation adequacy ratio simulation is implemented; use preview output for safe max information.
+- Borrow and withdraw execution is allowed only when preview returns `willSucceed: true` with no warnings and the user explicitly confirms.
 
 ### Contract Interactions
 
