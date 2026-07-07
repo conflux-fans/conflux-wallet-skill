@@ -711,6 +711,48 @@ describe('Unitus position and preview', () => {
     assert.equal(preview.willSucceed, true);
   });
 
+  it('blocks native supply max when it would spend the full gas token balance', async () => {
+    const config = getUnitusConfig('conflux');
+    const wallet = '0x0000000000000000000000000000000000000abc';
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000c1',
+      iTokenSymbol: 'iCFX',
+      underlying: zeroAddress,
+      symbol: 'CFX',
+      decimals: 18,
+      native: true,
+      marketParams: {
+        collateralFactor: 700000000000000000n,
+        borrowFactor: 1000000000000000000n,
+        mintPaused: false,
+      },
+    };
+    const client = {
+      async getBalance({ address }) {
+        assert.equal(address, wallet);
+        return 1000000000000000000n;
+      },
+      async readContract({ address, functionName }) {
+        if (address === config.lendingData && functionName === 'getAccountTotalValue') return [0n, 0n, 0n, 0n];
+        if (address === config.lendingData && functionName === 'getAccountSupplyData') {
+          return [0n, 1000000000000000000n, 1000000000000000000n, 0n, 0n, 0n, 18];
+        }
+        if (address === config.lendingData && functionName === 'getAccountBorrowData') return [0n, 0n, 0n, 1000000000000000000n, 0n, 18];
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    const preview = await previewAction(client, config, [market], wallet, {
+      action: 'supply',
+      asset: 'CFX',
+      amount: 'max',
+    });
+
+    assert.equal(preview.resolvedAmount, '1');
+    assert.equal(preview.willSucceed, false);
+    assert.match(preview.warnings.join('\n'), /native supply amount must leave balance for gas/);
+  });
+
   it('blocks previews for paused market actions', async () => {
     const config = getUnitusConfig('conflux');
     const wallet = '0x0000000000000000000000000000000000000abc';

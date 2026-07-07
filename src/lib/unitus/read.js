@@ -395,7 +395,7 @@ async function estimateAdequacyRatioAfter(client, config, action, market, amount
   };
 }
 
-function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequacyRatioAfter) {
+function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequacyRatioAfter, nativeBalance = null) {
   const warnings = [];
   let willSucceed = ['supply', 'repay'].includes(action);
   const poolCash = market.cash === undefined ? null : BigInt(market.cash);
@@ -412,6 +412,15 @@ function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequac
   if (action === 'supply' && market.marketParams?.mintPaused) {
     willSucceed = false;
     warnings.push('market mint is paused');
+  }
+  if (action === 'supply' && market.native) {
+    if (nativeBalance === null) {
+      willSucceed = false;
+      warnings.push('native balance is unavailable for gas reserve check');
+    } else if (resolvedAmount >= nativeBalance) {
+      willSucceed = false;
+      warnings.push('native supply amount must leave balance for gas');
+    }
   }
   if (action === 'repay' && selected.maxRepay !== undefined && resolvedAmount > selected.maxRepay) {
     willSucceed = false;
@@ -471,7 +480,8 @@ function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequac
 export async function previewAction(client, config, markets, address, options) {
   const market = resolveMarket(markets, options.asset);
   const safeMaxFactor = parseSafetyFactor(options.safety);
-  const [accountValue, supplyData, borrowData] = await Promise.all([
+  const shouldReadNativeBalance = options.action === 'supply' && market.native;
+  const [accountValue, supplyData, borrowData, nativeBalance] = await Promise.all([
     readAccountTotalValue(client, config, address),
     client.readContract({
       address: config.lendingData,
@@ -485,6 +495,7 @@ export async function previewAction(client, config, markets, address, options) {
       functionName: 'getAccountBorrowData',
       args: [market.iToken, address, safeMaxFactor],
     }),
+    shouldReadNativeBalance ? client.getBalance({ address }) : null,
   ]);
 
   const selected = selectPreviewAmount(
@@ -511,6 +522,7 @@ export async function previewAction(client, config, markets, address, options) {
     selected,
     market,
     afterEstimate?.adequacyRatioAfter ?? null,
+    nativeBalance,
   );
   if (afterEstimate?.warning) safety.warnings.push(afterEstimate.warning);
   if (afterEstimate?.warning) safety.willSucceed = false;
