@@ -267,6 +267,10 @@ function weightedValue(value, factor) {
   return (value * factor) / EXP_SCALE;
 }
 
+function borrowRiskValue(value, borrowFactor) {
+  return (value * EXP_SCALE) / borrowFactor;
+}
+
 function ratio(collateralValue, borrowValue) {
   if (borrowValue === 0n) return 'Infinity';
   return (collateralValue * EXP_SCALE) / borrowValue;
@@ -348,7 +352,7 @@ async function readRiskState(client, config, markets, address) {
       return { warning: 'underlying price is unavailable' };
     }
     const value = tokenValue(BigInt(borrowAmounts[index]), price, Number(borrowDecimals[index]));
-    adjustedBorrowValue += weightedValue(value, borrowFactor);
+    adjustedBorrowValue += borrowRiskValue(value, borrowFactor);
   }
 
   return { adjustedCollateralValue, adjustedBorrowValue, enteredMarkets };
@@ -385,7 +389,7 @@ async function estimateAdequacyRatioAfter(client, config, action, market, amount
   if (borrowFactor === null || borrowFactor === 0n) {
     return { adequacyRatioAfter: null, warning: 'missing borrow factor for borrow simulation' };
   }
-  const borrowIncrease = weightedValue(value, borrowFactor);
+  const borrowIncrease = borrowRiskValue(value, borrowFactor);
   return {
     adequacyRatioAfter: ratio(riskState.adjustedCollateralValue, riskState.adjustedBorrowValue + borrowIncrease),
   };
