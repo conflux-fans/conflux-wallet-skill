@@ -9,7 +9,9 @@
     "transfer": "node src/transfer.js",
     "contract": "node src/contract.js",
     "swap": "node src/swap.js",
-    "check-update": "node src/check-update.js"
+    "unitus": "node src/unitus.js",
+    "check-update": "node src/check-update.js",
+    "test": "node --test"
   },
   "dependencies": {
     "espace-uniswap-lib": "^0.2.0",
