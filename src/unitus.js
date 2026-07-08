@@ -89,11 +89,7 @@ async function loadUnitus(chainName) {
 
 function printResult(result) {
   const replacer = (_key, value) => (typeof value === 'bigint' ? value.toString() : value);
-  if (jsonFlag) {
-    console.log(JSON.stringify(result, replacer, 2));
-  } else {
-    console.log(JSON.stringify(result, replacer, 2));
-  }
+  console.log(JSON.stringify(result, replacer, 2));
 }
 
 export async function estimateTxGas(chainName, publicClient, walletAddress, txs, gasQuote = null) {

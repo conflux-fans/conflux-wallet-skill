@@ -41,6 +41,9 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
     const refreshEligibilityAction = collateral ? 'mintForSelfAndEnterMarket' : 'mint';
     const refreshEligibility = shouldRefreshEligibility(market, refreshEligibilityAction);
     if (market.native) {
+      if (collateral && !controller) {
+        throw new Error('controller is required to enter native supply as collateral');
+      }
       txs.push({
         description: `Supply native ${market.symbol} to Unitus`,
         address: market.iToken,
@@ -49,7 +52,7 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
         args: [user],
         value: parsedAmount,
       });
-      if (collateral && controller) txs.push(enterMarket(controller, market));
+      if (collateral) txs.push(enterMarket(controller, market));
       return txs;
     }
 

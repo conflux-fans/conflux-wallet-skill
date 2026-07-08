@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { isAddress, getAddress } from 'viem';
+import { LENDING_DATA_ABI } from './abis.js';
 
 const BUILTIN_CONFIGS = {
   conflux: {
@@ -62,7 +63,7 @@ export function sameAddress(left, right) {
 export async function validateUnitusConfig(client, config) {
   const lendingDataController = await client.readContract({
     address: config.lendingData,
-    abi: (await import('./abis.js')).LENDING_DATA_ABI,
+    abi: LENDING_DATA_ABI,
     functionName: 'controller',
   });
 

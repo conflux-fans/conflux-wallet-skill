@@ -319,8 +319,12 @@ function marketParam(market, name) {
   return value === undefined ? null : BigInt(value);
 }
 
-function tokenValue(amount, price, _decimals) {
-  return (amount * price) / EXP_SCALE;
+function tokenValue(amount, price, decimals) {
+  // Compound-style oracle prices are scaled as 1e(36 - underlyingDecimals).
+  // This keeps the unit math explicit and is equivalent to: (amount * price) / 1e18.
+  const tokenScale = 10n ** BigInt(decimals);
+  const oracleScale = 10n ** BigInt(36 - decimals);
+  return (amount * price * EXP_SCALE) / (tokenScale * oracleScale);
 }
 
 function weightedValue(value, factor) {

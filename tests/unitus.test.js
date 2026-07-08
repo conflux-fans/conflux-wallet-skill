@@ -1234,6 +1234,27 @@ describe('Unitus transaction planning', () => {
     assert.equal(txs[0].value, 1250000000000000000n);
   });
 
+  it('requires a controller to enter native CFX supply as collateral', () => {
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000c1',
+      underlying: zeroAddress,
+      symbol: 'CFX',
+      decimals: 18,
+      native: true,
+    };
+
+    assert.throws(
+      () => buildUnitusTransactions({
+        action: 'supply',
+        market,
+        amount: '1.25',
+        collateral: true,
+        user: '0x0000000000000000000000000000000000000abc',
+      }),
+      /controller is required to enter native supply as collateral/,
+    );
+  });
+
   it('plans refreshEligibility overloads for current ERC20 markets', () => {
     const market = {
       iToken: '0x00000000000000000000000000000000000000d1',
