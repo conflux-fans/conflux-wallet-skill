@@ -24,6 +24,9 @@ const REFRESH_ELIGIBILITY_SELECTORS = [
   '4dd0ef7c', // repayBorrow(uint256,bool)
   '03a93298', // repayBorrow(bool)
 ];
+const NATIVE_UNDERLYING_SYMBOL_BY_CHAIN = {
+  conflux: 'CFX',
+};
 
 function normalizeSymbol(symbol) {
   if (symbol === 'iCFX') return 'CFX';
@@ -32,8 +35,7 @@ function normalizeSymbol(symbol) {
 
 function nativeUnderlyingFallback(config, iTokenSymbol) {
   const symbol = normalizeSymbol(iTokenSymbol).toUpperCase();
-  if (config.chain === 'conflux' && symbol === 'CFX') return zeroAddress;
-  if (symbol === 'ETH') return zeroAddress;
+  if (symbol === NATIVE_UNDERLYING_SYMBOL_BY_CHAIN[config.chain]) return zeroAddress;
   return null;
 }
 

@@ -128,6 +128,29 @@ describe('Unitus market discovery', () => {
     assert.equal(result.markets[0].underlying, zeroAddress);
   });
 
+  it('does not classify Conflux iETH as native when underlying() reverts', async () => {
+    const config = getUnitusConfig('conflux');
+    const iEth = '0x00000000000000000000000000000000000000c2';
+    const client = {
+      async readContract({ address, functionName }) {
+        if (address === config.controller && functionName === 'getAlliTokens') return [iEth];
+        if (address === config.controller && functionName === 'markets') return [1n, 2n, 3n, 4n, false, false, false];
+        if (address === config.controller && functionName === 'priceOracle') return '0x00000000000000000000000000000000000000f1';
+        if (address === config.controller && functionName === 'rewardDistributor') return '0x00000000000000000000000000000000000000f2';
+        if (address === iEth && functionName === 'symbol') return 'iETH';
+        if (address === iEth && functionName === 'decimals') return 18;
+        if (address === iEth && functionName === 'underlying') throw new Error('execution reverted');
+        if (address === iEth && functionName === 'getCash') return 10n;
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    await assert.rejects(
+      discoverMarkets(client, config),
+      /execution reverted/,
+    );
+  });
+
   it('detects refreshEligibility overload support from proxy implementation bytecode', async () => {
     const config = getUnitusConfig('conflux');
     const iUsdt0 = '0x00000000000000000000000000000000000000d1';
