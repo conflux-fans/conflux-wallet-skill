@@ -30,6 +30,13 @@ function normalizeSymbol(symbol) {
   return symbol.startsWith('i') ? symbol.slice(1) : symbol;
 }
 
+function nativeUnderlyingFallback(config, iTokenSymbol) {
+  const symbol = normalizeSymbol(iTokenSymbol).toUpperCase();
+  if (config.chain === 'conflux' && symbol === 'CFX') return zeroAddress;
+  if (symbol === 'ETH') return zeroAddress;
+  return null;
+}
+
 function mapMarketParams(params) {
   return Object.fromEntries(MARKET_PARAM_NAMES.map((name, index) => [name, params[index]]));
 }
@@ -76,10 +83,9 @@ async function readUnderlyingMetadata(client, underlying) {
 }
 
 async function discoverMarket(client, config, iToken) {
-  const [iTokenSymbol, iTokenDecimals, underlying, cash, rawParams] = await Promise.all([
+  const [iTokenSymbol, iTokenDecimals, cash, rawParams] = await Promise.all([
     client.readContract({ address: iToken, abi: ITOKEN_ABI, functionName: 'symbol' }),
     client.readContract({ address: iToken, abi: ITOKEN_ABI, functionName: 'decimals' }),
-    client.readContract({ address: iToken, abi: ITOKEN_ABI, functionName: 'underlying' }),
     client.readContract({ address: iToken, abi: ITOKEN_ABI, functionName: 'getCash' }),
     client.readContract({
       address: config.controller,
@@ -88,6 +94,11 @@ async function discoverMarket(client, config, iToken) {
       args: [iToken],
     }),
   ]);
+  const underlying = await client.readContract({ address: iToken, abi: ITOKEN_ABI, functionName: 'underlying' }).catch((error) => {
+    const fallback = nativeUnderlyingFallback(config, iTokenSymbol);
+    if (fallback !== null) return fallback;
+    throw error;
+  });
 
   const native = sameAddress(underlying, zeroAddress);
   const underlyingMetadata = native

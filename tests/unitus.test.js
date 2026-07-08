@@ -103,6 +103,31 @@ describe('Unitus market discovery', () => {
     assert.equal(calls.some((call) => call.address === zeroAddress), false);
   });
 
+  it('discovers native CFX markets when underlying() is not implemented', async () => {
+    const config = getUnitusConfig('conflux');
+    const iCfx = '0x00000000000000000000000000000000000000c1';
+    const client = {
+      async readContract({ address, functionName }) {
+        if (address === config.controller && functionName === 'getAlliTokens') return [iCfx];
+        if (address === config.controller && functionName === 'markets') return [1n, 2n, 3n, 4n, false, false, false];
+        if (address === config.controller && functionName === 'priceOracle') return '0x00000000000000000000000000000000000000f1';
+        if (address === config.controller && functionName === 'rewardDistributor') return '0x00000000000000000000000000000000000000f2';
+        if (address === iCfx && functionName === 'symbol') return 'iCFX';
+        if (address === iCfx && functionName === 'decimals') return 18;
+        if (address === iCfx && functionName === 'underlying') throw new Error('execution reverted');
+        if (address === iCfx && functionName === 'getCash') return 10n;
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    const result = await discoverMarkets(client, config);
+
+    assert.equal(result.markets.length, 1);
+    assert.equal(result.markets[0].symbol, 'CFX');
+    assert.equal(result.markets[0].native, true);
+    assert.equal(result.markets[0].underlying, zeroAddress);
+  });
+
   it('detects refreshEligibility overload support from proxy implementation bytecode', async () => {
     const config = getUnitusConfig('conflux');
     const iUsdt0 = '0x00000000000000000000000000000000000000d1';
