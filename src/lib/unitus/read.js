@@ -15,15 +15,16 @@ const MARKET_PARAM_NAMES = [
 ];
 
 const EXP_SCALE = 1000000000000000000n;
+const NATIVE_GAS_RESERVE_WEI = 10000000000000000n;
 const EIP1967_IMPLEMENTATION_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
-const REFRESH_ELIGIBILITY_SELECTORS = [
-  'd1a1beb4', // mint(address,uint256,bool)
-  '3f59c921', // mintForSelfAndEnterMarket(uint256,bool)
-  '4cdfda65', // redeemUnderlying(address,uint256,bool)
-  '8cd01307', // borrow(uint256,bool)
-  '4dd0ef7c', // repayBorrow(uint256,bool)
-  '03a93298', // repayBorrow(bool)
-];
+const REFRESH_ELIGIBILITY_SELECTORS = {
+  mint: 'd1a1beb4', // mint(address,uint256,bool)
+  mintForSelfAndEnterMarket: '3f59c921', // mintForSelfAndEnterMarket(uint256,bool)
+  redeemUnderlying: '4cdfda65', // redeemUnderlying(address,uint256,bool)
+  borrow: '8cd01307', // borrow(uint256,bool)
+  repayBorrow: '4dd0ef7c', // repayBorrow(uint256,bool)
+  repayBorrowNative: '03a93298', // repayBorrow(bool)
+};
 const NATIVE_UNDERLYING_SYMBOL_BY_CHAIN = {
   conflux: 'CFX',
 };
@@ -48,10 +49,13 @@ function implementationAddressFromSlot(value) {
   return getAddress(`0x${value.slice(-40)}`);
 }
 
-function bytecodeHasRefreshEligibilitySelector(bytecode) {
-  if (!bytecode) return false;
+function bytecodeRefreshEligibilitySupport(bytecode) {
+  if (!bytecode) return null;
   const lower = bytecode.toLowerCase();
-  return REFRESH_ELIGIBILITY_SELECTORS.some((selector) => lower.includes(selector));
+  const support = Object.fromEntries(
+    Object.entries(REFRESH_ELIGIBILITY_SELECTORS).map(([name, selector]) => [name, lower.includes(selector)]),
+  );
+  return Object.values(support).some(Boolean) ? support : null;
 }
 
 async function detectRefreshEligibilitySupport(client, iToken) {
@@ -59,7 +63,8 @@ async function detectRefreshEligibilitySupport(client, iToken) {
 
   try {
     const directCode = await client.getCode({ address: iToken });
-    if (bytecodeHasRefreshEligibilitySelector(directCode)) return true;
+    const directSupport = bytecodeRefreshEligibilitySupport(directCode);
+    if (directSupport) return directSupport;
 
     if (typeof client.getStorageAt !== 'function') return false;
     const rawImplementation = await client.getStorageAt({
@@ -69,7 +74,7 @@ async function detectRefreshEligibilitySupport(client, iToken) {
     const implementation = implementationAddressFromSlot(rawImplementation);
     if (!implementation) return false;
     const implementationCode = await client.getCode({ address: implementation });
-    return bytecodeHasRefreshEligibilitySelector(implementationCode);
+    return bytecodeRefreshEligibilitySupport(implementationCode) ?? false;
   } catch {
     return false;
   }
@@ -472,7 +477,7 @@ function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequac
     if (nativeBalance === null) {
       willSucceed = false;
       warnings.push('native balance is unavailable for gas reserve check');
-    } else if (resolvedAmount >= nativeBalance) {
+    } else if (nativeBalance - resolvedAmount < NATIVE_GAS_RESERVE_WEI) {
       willSucceed = false;
       warnings.push('native supply amount must leave balance for gas');
     }
@@ -485,7 +490,7 @@ function evaluatePreviewSafety(action, resolvedAmount, selected, market, adequac
     if (nativeBalance === null) {
       willSucceed = false;
       warnings.push('native balance is unavailable for gas reserve check');
-    } else if (resolvedAmount >= nativeBalance) {
+    } else if (nativeBalance - resolvedAmount < NATIVE_GAS_RESERVE_WEI) {
       willSucceed = false;
       warnings.push('native repay amount must leave balance for gas');
     }

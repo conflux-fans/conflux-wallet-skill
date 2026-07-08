@@ -186,7 +186,14 @@ describe('Unitus market discovery', () => {
 
     const result = await discoverMarkets(client, config);
 
-    assert.equal(result.markets[0].refreshEligibility, true);
+    assert.deepEqual(result.markets[0].refreshEligibility, {
+      mint: true,
+      mintForSelfAndEnterMarket: false,
+      redeemUnderlying: false,
+      borrow: false,
+      repayBorrow: true,
+      repayBorrowNative: false,
+    });
   });
 });
 
@@ -839,6 +846,47 @@ describe('Unitus position and preview', () => {
     assert.match(preview.warnings.join('\n'), /native supply amount must leave balance for gas/);
   });
 
+  it('blocks native supply when the amount leaves only one wei for gas', async () => {
+    const config = getUnitusConfig('conflux');
+    const wallet = '0x0000000000000000000000000000000000000abc';
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000c1',
+      iTokenSymbol: 'iCFX',
+      underlying: zeroAddress,
+      symbol: 'CFX',
+      decimals: 18,
+      native: true,
+      marketParams: {
+        collateralFactor: 700000000000000000n,
+        borrowFactor: 1000000000000000000n,
+        mintPaused: false,
+      },
+    };
+    const client = {
+      async getBalance({ address }) {
+        assert.equal(address, wallet);
+        return 1000000000000000000n;
+      },
+      async readContract({ address, functionName }) {
+        if (address === config.lendingData && functionName === 'getAccountTotalValue') return [0n, 0n, 0n, 0n];
+        if (address === config.lendingData && functionName === 'getAccountSupplyData') {
+          return [0n, 1000000000000000000n, 1000000000000000000n, 0n, 0n, 0n, 18];
+        }
+        if (address === config.lendingData && functionName === 'getAccountBorrowData') return [0n, 0n, 0n, 1000000000000000000n, 0n, 18];
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    const preview = await previewAction(client, config, [market], wallet, {
+      action: 'supply',
+      asset: 'CFX',
+      amount: '0.999999999999999999',
+    });
+
+    assert.equal(preview.willSucceed, false);
+    assert.match(preview.warnings.join('\n'), /native supply amount must leave balance for gas/);
+  });
+
   it('blocks native repay max when it would spend the full gas token balance', async () => {
     const config = getUnitusConfig('conflux');
     const wallet = '0x0000000000000000000000000000000000000abc';
@@ -879,6 +927,49 @@ describe('Unitus position and preview', () => {
     });
 
     assert.equal(preview.resolvedAmount, '1');
+    assert.equal(preview.willSucceed, false);
+    assert.match(preview.warnings.join('\n'), /native repay amount must leave balance for gas/);
+  });
+
+  it('blocks native repay when the amount leaves only one wei for gas', async () => {
+    const config = getUnitusConfig('conflux');
+    const wallet = '0x0000000000000000000000000000000000000abc';
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000c1',
+      iTokenSymbol: 'iCFX',
+      underlying: zeroAddress,
+      symbol: 'CFX',
+      decimals: 18,
+      native: true,
+      marketParams: {
+        collateralFactor: 700000000000000000n,
+        borrowFactor: 1000000000000000000n,
+        mintPaused: false,
+      },
+    };
+    const client = {
+      async getBalance({ address }) {
+        assert.equal(address, wallet);
+        return 1000000000000000000n;
+      },
+      async readContract({ address, functionName }) {
+        if (address === config.lendingData && functionName === 'getAccountTotalValue') return [0n, 0n, 0n, 0n];
+        if (address === config.lendingData && functionName === 'getAccountSupplyData') {
+          return [0n, 0n, 0n, 0n, 0n, 0n, 18];
+        }
+        if (address === config.lendingData && functionName === 'getAccountBorrowData') {
+          return [1000000000000000000n, 0n, 0n, 1000000000000000000n, 1000000000000000000n, 18];
+        }
+        throw new Error(`unexpected call ${address}.${functionName}`);
+      },
+    };
+
+    const preview = await previewAction(client, config, [market], wallet, {
+      action: 'repay',
+      asset: 'CFX',
+      amount: '0.999999999999999999',
+    });
+
     assert.equal(preview.willSucceed, false);
     assert.match(preview.warnings.join('\n'), /native repay amount must leave balance for gas/);
   });
@@ -1165,6 +1256,37 @@ describe('Unitus transaction planning', () => {
     assert.deepEqual(withdraw[0].args, [user, 12500000n, true]);
     assert.deepEqual(borrow[0].args, [12500000n, true]);
     assert.deepEqual(repay[1].args, [12500000n, false]);
+  });
+
+  it('uses legacy overloads for actions without per-action refreshEligibility support', () => {
+    const market = {
+      iToken: '0x00000000000000000000000000000000000000d1',
+      underlying: '0x00000000000000000000000000000000000000e1',
+      symbol: 'USDT0',
+      decimals: 6,
+      native: false,
+      refreshEligibility: {
+        mint: true,
+        mintForSelfAndEnterMarket: false,
+        redeemUnderlying: false,
+        borrow: false,
+        repayBorrow: false,
+        repayBorrowNative: false,
+      },
+    };
+    const user = '0x0000000000000000000000000000000000000abc';
+
+    const supply = buildUnitusTransactions({ action: 'supply', market, amount: '12.5', user });
+    const supplyAndEnter = buildUnitusTransactions({ action: 'supply', market, amount: '12.5', collateral: true, user });
+    const withdraw = buildUnitusTransactions({ action: 'withdraw', market, amount: '12.5', user });
+    const borrow = buildUnitusTransactions({ action: 'borrow', market, amount: '12.5', user });
+    const repay = buildUnitusTransactions({ action: 'repay', market, amount: '12.5', user });
+
+    assert.deepEqual(supply[1].args, [user, 12500000n, true]);
+    assert.deepEqual(supplyAndEnter[1].args, [12500000n]);
+    assert.deepEqual(withdraw[0].args, [user, 12500000n]);
+    assert.deepEqual(borrow[0].args, [12500000n]);
+    assert.deepEqual(repay[1].args, [12500000n]);
   });
 
   it('plans refreshEligibility overload for native repay', () => {

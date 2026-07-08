@@ -28,16 +28,18 @@ function enterMarket(controller, market) {
   };
 }
 
-function shouldRefreshEligibility(market) {
-  return market.refreshEligibility === true;
+function shouldRefreshEligibility(market, action) {
+  if (market.refreshEligibility === true) return true;
+  return market.refreshEligibility?.[action] === true;
 }
 
 export function buildUnitusTransactions({ action, market, amount, collateral = false, user, controller }) {
   const parsedAmount = parseActionAmount(amount, market.decimals);
-  const refreshEligibility = shouldRefreshEligibility(market);
   const txs = [];
 
   if (action === 'supply') {
+    const refreshEligibilityAction = collateral ? 'mintForSelfAndEnterMarket' : 'mint';
+    const refreshEligibility = shouldRefreshEligibility(market, refreshEligibilityAction);
     if (market.native) {
       txs.push({
         description: `Supply native ${market.symbol} to Unitus`,
@@ -66,6 +68,7 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
   }
 
   if (action === 'withdraw') {
+    const refreshEligibility = shouldRefreshEligibility(market, 'redeemUnderlying');
     return [{
       description: `Withdraw ${market.symbol} from Unitus`,
       address: market.iToken,
@@ -77,6 +80,7 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
   }
 
   if (action === 'borrow') {
+    const refreshEligibility = shouldRefreshEligibility(market, 'borrow');
     return [{
       description: `Borrow ${market.symbol} from Unitus`,
       address: market.iToken,
@@ -89,6 +93,7 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
 
   if (action === 'repay') {
     if (market.native) {
+      const refreshEligibility = shouldRefreshEligibility(market, 'repayBorrowNative');
       return [{
         description: `Repay native ${market.symbol} borrow on Unitus`,
         address: market.iToken,
@@ -99,6 +104,7 @@ export function buildUnitusTransactions({ action, market, amount, collateral = f
       }];
     }
 
+    const refreshEligibility = shouldRefreshEligibility(market, 'repayBorrow');
     txs.push(erc20Approval(market, parsedAmount));
     txs.push({
       description: `Repay ${market.symbol} borrow on Unitus`,

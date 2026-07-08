@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { formatEther } from 'viem';
+import { encodeFunctionData, formatEther } from 'viem';
 import { pathToFileURL } from 'node:url';
 import { printUpdateNag } from './check-update.js';
 import { getAddress, exists, getWalletClient } from './lib/wallet.js';
@@ -100,11 +100,16 @@ export async function estimateTxGas(chainName, publicClient, walletAddress, txs,
   const gas = gasQuote ?? await estimateGas(chainName);
   const estimates = [];
   for (const tx of txs) {
+    const data = tx.data ?? encodeFunctionData({
+      abi: tx.abi,
+      functionName: tx.functionName,
+      args: tx.args,
+    });
     const gasLimit = await estimateGasLimit(publicClient, {
       account: walletAddress,
       to: tx.address,
       value: tx.value,
-      data: tx.data ?? '0x',
+      data,
     }).catch(() => null);
     estimates.push({ ...gas, gasLimit });
   }
