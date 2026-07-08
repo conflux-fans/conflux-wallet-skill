@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { formatEther } from 'viem';
+import { pathToFileURL } from 'node:url';
 import { printUpdateNag } from './check-update.js';
 import { getAddress, exists, getWalletClient } from './lib/wallet.js';
 import { createPublicClientWithRetry } from './lib/rpc.js';
@@ -95,15 +96,15 @@ function printResult(result) {
   }
 }
 
-async function estimateTxGas(chainName, publicClient, walletAddress, txs) {
-  const gas = await estimateGas(chainName);
+export async function estimateTxGas(chainName, publicClient, walletAddress, txs, gasQuote = null) {
+  const gas = gasQuote ?? await estimateGas(chainName);
   const estimates = [];
   for (const tx of txs) {
     const gasLimit = await estimateGasLimit(publicClient, {
       account: walletAddress,
       to: tx.address,
       value: tx.value,
-      data: '0x',
+      data: tx.data ?? '0x',
     }).catch(() => null);
     estimates.push({ ...gas, gasLimit });
   }
@@ -215,4 +216,6 @@ async function main() {
   }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}
